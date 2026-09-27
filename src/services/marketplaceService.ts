@@ -57,9 +57,10 @@ export async function getProductCategories(): Promise<ApiResponse<any>> {
   return await apiFetch<any>('/product/categories?unused=false', {}, REQUEST_TIMEOUT_MS);
 }
 
-// GET /store/find — listado de tiendas del Home
-export async function findStores(): Promise<ApiResponse<any>> {
-  return await apiFetch<any>('/store/find?category=&keywords=', {}, REQUEST_TIMEOUT_MS);
+// GET /store/find — listado de tiendas del Home. `options`/`timeoutMs` son opcionales: las rutas por tienda lo llaman desde el SERVIDOR con
+// `{ next: { revalidate } }` (caché de datos de Next) y un timeout corto para no retrasar la respuesta a los rastreadores de vista previa.
+export async function findStores(options: RequestInit = {}, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<ApiResponse<any>> {
+  return await apiFetch<any>('/store/find?category=&keywords=', options, timeoutMs);
 }
 
 // `timeoutMs` opcional (sin él, sin límite como siempre). Devuelve `store` con la tasa oficial (`referenceRateValue`) y los descuentos/cargos
@@ -131,8 +132,10 @@ export async function getProductsByStore(storeId: number | string, page: number 
   return await apiFetch<any>(`/products/store/${storeId}${page > 1 ? `?page=${page}` : ''}`, {}, REQUEST_TIMEOUT_MS);
 }
 
-export async function getProduct(productId: number | string): Promise<ApiResponse<any>> {
-  return await apiFetch<any>(`/product/${productId}/web`);
+// GET /product/{id}/web — acepta el id o el hash del producto. `options`/`timeoutMs` opcionales (ver `findStores`). Un producto inexistente
+// responde HTTP 404 con `{ message: "E_ROW_NOT_FOUND..." }` (sin `code`).
+export async function getProduct(productId: number | string, options: RequestInit = {}, timeoutMs?: number): Promise<ApiResponse<any>> {
+  return await apiFetch<any>(`/product/${productId}/web`, options, timeoutMs);
 }
 
 // GET /store/{id}/schedule/open?apikey= — horario semanal del comercio. El contrato pide "apikey" en query y en header

@@ -42,6 +42,7 @@ interface MerchantStoreViewProps {
   forceOpenCartTrigger?: number;
   userLocation?: CustomerLocation | null;
   isLoadingMore?: boolean; // siguen llegando páginas de productos del backend
+  initialProductId?: string; // ruta `/store/{code}/product/{id}`: se abre esta ficha al montar (id o hash, como acepta `GET /product/{id}/web`)
 }
 
 export default function MerchantStoreView({
@@ -52,6 +53,7 @@ export default function MerchantStoreView({
   forceOpenCartTrigger,
   userLocation,
   isLoadingMore = false,
+  initialProductId,
 }: MerchantStoreViewProps) {
   // El carrito guardado solo se carga si pertenece EXACTAMENTE a esta tienda (`cart_data` = { storeId, items }): un carrito de otro
   // comercio, o en el formato viejo sin tienda, se ignora (auditoría C1: antes ítems de una tienda aparecían en otra).
@@ -83,6 +85,16 @@ export default function MerchantStoreView({
     sp.delete('resumeProduct');
     const qs = sp.toString();
     window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Ficha compartida (`/store/{code}/product/{id}`): abre ese producto una sola vez al montar la tienda. Se busca en los productos ya
+  // cargados por id, hash o código; si no está (el listado llega paginado) se pide por id/hash al detalle. Si el detalle falla no se
+  // muestra ningún aviso del navegador: el cliente simplemente ve el catálogo de la tienda.
+  React.useEffect(() => {
+    if (!initialProductId) return;
+    const wanted = String(initialProductId);
+    const known = products.find((p: any) => [p.id, p.hash, p.code].some((v) => v !== undefined && v !== null && String(v) === wanted));
+    handleProductClick(known || { id: wanted }, 1, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   React.useEffect(() => {
@@ -309,15 +321,16 @@ export default function MerchantStoreView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleProductClick = async (product: any, initialQty: number = 1) => {
+  const handleProductClick = async (product: any, initialQty: number = 1, silentFailure: boolean = false) => {
     setModalInitialQty(initialQty);
     setLoadingProduct(true);
     // Si el detalle del backend no llega, solo se abre el modal con los datos REALES del listado. Si el listado tampoco trae un
     // precio válido NO se inventa uno (antes `price || 1.5`): se avisa y no se abre (auditoría C5/limpieza de precio de respaldo).
+    // `silentFailure` (enlace directo a una ficha): no se muestra el aviso del navegador, solo se queda el catálogo.
     const openWithListingData = () => {
       const listPrice = Number(product.price);
       if (!Number.isFinite(listPrice) || listPrice <= 0) {
-        alert('No pudimos cargar la información de este producto. Revisa tu conexión e inténtalo de nuevo.');
+        if (!silentFailure) alert('No pudimos cargar la información de este producto. Revisa tu conexión e inténtalo de nuevo.');
         return;
       }
       setSelectedProductDetail({
