@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, MapPin, Loader2, Check, Search } from 'lucide-react';
 import { getDistanceAndTime } from '@/lib/logisticsEngine';
 import { loadGoogleMaps } from '@/lib/googleMaps';
+import { useAuth } from '@/context/AuthContext';
+import { addSavedAddress, getSavedAddresses, type SavedAddress } from '@/lib/customerProfile';
 
 const MAX_DELIVERY_KM = 12;
 
@@ -19,6 +21,8 @@ interface LocationPickerModalProps {
   onConfirm: (location: PickedLocation) => void;
   initialCenter: { lat: number; lng: number };
   storeCoords?: { lat: number; lng: number } | null;
+  /** Ofrece "Guardar esta dirección" al confirmar (solo con sesión iniciada). Falso cuando quien lo monta ya guarda la dirección por su cuenta. */
+  allowSave?: boolean;
 }
 
 export default function LocationPickerModal(props: LocationPickerModalProps) {
@@ -26,7 +30,7 @@ export default function LocationPickerModal(props: LocationPickerModalProps) {
   return <PickerBody {...props} />;
 }
 
-function PickerBody({ onClose, onConfirm, initialCenter, storeCoords }: LocationPickerModalProps) {
+function PickerBody({ onClose, onConfirm, initialCenter, storeCoords, allowSave = true }: LocationPickerModalProps) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<any>(null);
@@ -40,6 +44,15 @@ function PickerBody({ onClose, onConfirm, initialCenter, storeCoords }: Location
   const [resolving, setResolving] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+
+  // Cuenta del cliente: direcciones guardadas en este dispositivo (a un toque) y opción de guardar la que se confirma
+  const { user } = useAuth();
+  const uid = user?.uid ?? '';
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [saveThisAddress, setSaveThisAddress] = useState(false);
+  useEffect(() => {
+    setSavedAddresses(uid ? getSavedAddresses(uid) : []);
+  }, [uid]);
 
   // Dirección legible del punto (Geocoder inverso); si falla, se conservan las coordenadas
   const resolveAddress = (lat: number, lng: number) => {
@@ -140,11 +153,24 @@ function PickerBody({ onClose, onConfirm, initialCenter, storeCoords }: Location
   };
 
   const handleConfirm = () => {
-    onConfirm({
+    const picked = {
       lat: position.lat,
       lng: position.lng,
       address: address || `Ubicación seleccionada (${position.lat.toFixed(5)}, ${position.lng.toFixed(5)})`,
-    });
+    };
+    if (allowSave && uid && saveThisAddress) addSavedAddress(uid, picked);
+    onConfirm(picked);
+  };
+
+  // Una dirección guardada mueve el pin y la dirección; el cliente igual confirma (así se muestra la distancia y aplica el límite de 12 km)
+  const applySavedAddress = (saved: SavedAddress) => {
+    setAddress(saved.address);
+    setPosition({ lat: saved.lat, lng: saved.lng });
+    if (markerRef.current) markerRef.current.setPosition({ lat: saved.lat, lng: saved.lng });
+    if (mapRef.current) {
+      mapRef.current.setZoom(17);
+      mapRef.current.panTo({ lat: saved.lat, lng: saved.lng });
+    }
   };
 
   const outOfRange = distanceKm !== null && distanceKm > MAX_DELIVERY_KM;
@@ -163,6 +189,25 @@ function PickerBody({ onClose, onConfirm, initialCenter, storeCoords }: Location
         </div>
 
         <div className="p-3 space-y-2 overflow-y-auto">
+          {savedAddresses.length > 0 && (
+            <div>
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Mis direcciones guardadas</span>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                {savedAddresses.map((saved) => (
+                  <button
+                    key={saved.id}
+                    type="button"
+                    onClick={() => applySavedAddress(saved)}
+                    title={saved.address}
+                    className="flex max-w-[210px] shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700 transition hover:border-[#fe6712]/50 hover:bg-orange-50 cursor-pointer"
+                  >
+                    <MapPin className="h-3 w-3 shrink-0 text-[#fe6712]" />
+                    <span className="truncate">{saved.address}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-1.5">
             <input
               ref={searchInputRef}
@@ -206,6 +251,12 @@ function PickerBody({ onClose, onConfirm, initialCenter, storeCoords }: Location
               </p>
             )}
           </div>
+          {allowSave && uid && (
+            <label className="flex cursor-pointer items-center gap-2 px-1 text-[11px] font-bold text-slate-600">
+              <input type="checkbox" checked={saveThisAddress} onChange={(e) => setSaveThisAddress(e.target.checked)} className="h-3.5 w-3.5 accent-[#fe6712]" />
+              Guardar esta dirección en mi cuenta
+            </label>
+          )}
         </div>
 
         <div className="px-4 py-3 border-t border-slate-100 bg-white shrink-0 flex gap-2">

@@ -6,6 +6,8 @@ import CheckoutModal from '@/components/CheckoutModal';
 import OrderTrackingModal from '@/components/OrderTrackingModal';
 import PromotionsCarousel from '@/components/PromotionsCarousel';
 import StoreScheduleModal from '@/components/StoreScheduleModal';
+import AccountMenu from '@/components/AccountMenu';
+import { NoOrdersModal, SavedAddressesModal } from '@/components/AccountModals';
 
 import { getProductsByStore, getStorePromotions, getOrderPublic, getProductCategories, findStores, getStorePaymentInfo, REQUEST_TIMEOUT_MS } from '@/services/marketplaceService';
 import { parseStoreAdjustments, storeDiscountBadge, type StoreAdjustment } from '@/lib/storeAdjustments';
@@ -199,6 +201,9 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
   
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  // Menú de la cuenta (cabecera): "Mis Pedidos" sin pedido guardado y "Direcciones Guardadas"
+  const [isNoOrdersOpen, setIsNoOrdersOpen] = useState(false);
+  const [isAddressesOpen, setIsAddressesOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string>('');
   const [hasCompletedOrder, setHasCompletedOrder] = useState<boolean>(false);
   const [forceCartOpenCount, setForceCartOpenCount] = useState<number>(0);
@@ -662,8 +667,15 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         {/* Cabecera Móvil (< md) */}
         <div className="md:hidden flex flex-col w-full pb-2">
-          {/* Fila 1: Logo Centrado Institucional */}
-          <div className="w-full flex justify-center py-2">
+          {/* Fila 1: Logo Centrado Institucional (cuenta del cliente a la derecha) */}
+          <div className="relative w-full flex justify-center py-2">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <AccountMenu
+                loginLabelClassName="hidden min-[380px]:inline"
+                onOpenOrders={() => (savedOrderId ? setIsTrackingOpen(true) : setIsNoOrdersOpen(true))}
+                onOpenAddresses={() => setIsAddressesOpen(true)}
+              />
+            </div>
             <div
               onClick={() => { setActiveMerchantId(null); setSelectedCategory('ALL'); setSearchQuery(''); if(typeof window !== 'undefined') localStorage.removeItem('current_cart_store_id'); }}
               className="flex items-center cursor-pointer select-none"
@@ -758,6 +770,10 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
               <button type="button" onClick={() => setCurrencyMode('USD')} className={`px-2.5 py-1 rounded-full cursor-pointer whitespace-nowrap transition ${currencyMode === 'USD' ? 'bg-[#fe6712] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>USD</button>
               <button type="button" onClick={() => setCurrencyMode('VES')} className={`px-2.5 py-1 rounded-full cursor-pointer whitespace-nowrap transition ${currencyMode === 'VES' ? 'bg-[#fe6712] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Bs</button>
             </div>
+            <AccountMenu
+              onOpenOrders={() => (savedOrderId ? setIsTrackingOpen(true) : setIsNoOrdersOpen(true))}
+              onOpenAddresses={() => setIsAddressesOpen(true)}
+            />
           </div>
 
         </div>
@@ -1071,6 +1087,9 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
       )}
 
       <OrderTrackingModal isOpen={isTrackingOpen} onClose={() => setIsTrackingOpen(false)} orderId={savedOrderId} />
+
+      <NoOrdersModal isOpen={isNoOrdersOpen} onClose={() => setIsNoOrdersOpen(false)} />
+      <SavedAddressesModal isOpen={isAddressesOpen} onClose={() => setIsAddressesOpen(false)} initialCenter={userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : CABIMAS_CENTER} />
     </div>
   );
 }

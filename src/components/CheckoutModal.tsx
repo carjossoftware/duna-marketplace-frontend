@@ -22,6 +22,7 @@ import { parseStoreAdjustments, computeStoreAdjustments, adjustmentsSignature, t
 import { calculateLogistics, PhysicalItem } from '@/lib/logisticsEngine';
 import { clearCart } from '@/lib/cartStorage';
 import { toWhatsAppNumber } from '@/lib/orderTracking';
+import { useAuth } from '@/context/AuthContext';
 
 export interface PaymentConfigItem {
   code: string;
@@ -248,6 +249,9 @@ export default function CheckoutModal({
   const [codigoPais, setCodigoPais] = useState('+58');
   const [telefono, setTelefono] = useState('');
 
+  // Cuenta del cliente (opcional): con sesión se autocompletan los datos; sin ella el cliente sigue como invitado con su WhatsApp. NO viaja a AdonisJS.
+  const { user: authUser, isAuthenticated, isAvailable: authAvailable, openAuthModal } = useAuth();
+
   const [propinaElegida, setPropina] = useState<number>(0.50);
   const [referenciaPago, setReferenciaPago] = useState('');
   const [archivoComprobante, setArchivoComprobante] = useState<File | null>(null);
@@ -333,14 +337,16 @@ export default function CheckoutModal({
     });
   }, [isOpen, orderSummary.merchantId]);
 
-  // Pre-carga de datos del cliente (solo campos vacíos). Claves: customerName/customerDocument/customerPhone o name/document/phone
+  // Pre-carga de datos del cliente (solo campos vacíos). Con sesión iniciada manda el perfil de la cuenta (nombre y teléfono de registro);
+  // sin sesión, lo último usado en este dispositivo. Claves: customerName/customerDocument/customerPhone o name/document/phone.
+  // Se repite al iniciar sesión con el checkout abierto (solo rellena lo que siga vacío).
   useEffect(() => {
     if (!isOpen) return;
     try {
       const pick = (...keys: string[]) => keys.map((key) => localStorage.getItem(key)).find((v) => v && v.trim()) || '';
-      const savedName = pick('customerName', 'name').trim();
+      const savedName = (authUser?.name || pick('customerName', 'name')).trim();
       const savedDoc = pick('customerDocument', 'document').trim();
-      const savedPhone = pick('customerPhone', 'phone').trim();
+      const savedPhone = (authUser?.phone || pick('customerPhone', 'phone')).trim();
 
       if (savedName && !nombre) setNombre(savedName);
 
@@ -368,7 +374,7 @@ export default function CheckoutModal({
       /* localStorage no disponible: se deja el formulario vacío */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, authUser?.uid]);
 
   // ── Faro guiado (Pasos 2 y 3). Hooks SIEMPRE antes del `return null` (regla #300). ───────────────────────────────────
   const { active: beacon, fire: fireBeacon, scrollTo: beaconScrollTo } = useBeacon<'continue' | 'bank' | 'reference' | 'confirm'>();
@@ -934,6 +940,18 @@ export default function CheckoutModal({
                   <p className="text-[8.5px] text-slate-500 font-medium truncate">{logisticsResult.motivoAsignacion}</p>
                 </div>
               </div>
+            )}
+
+            {authAvailable && !isAuthenticated && (
+              <div className="shrink-0 flex items-center justify-between gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-2.5 py-1.5">
+                <p className="text-[10px] font-bold leading-tight text-slate-600">¿Ya tienes cuenta? Inicia sesión para autocompletar tus datos, o sigue como invitado con tu WhatsApp.</p>
+                <button type="button" onClick={() => openAuthModal()} className="shrink-0 rounded-full bg-[#fe6712] px-3 py-1 text-[10px] font-black text-white hover:bg-[#e0580d] cursor-pointer">
+                  Iniciar sesión
+                </button>
+              </div>
+            )}
+            {authAvailable && isAuthenticated && authUser && (
+              <p className="shrink-0 px-1 text-[10px] font-bold text-slate-500">Comprando como <span className="text-slate-800">{authUser.name}</span></p>
             )}
 
             <div className="bg-slate-50/70 p-2.5 rounded-2xl border border-slate-100 space-y-1.5 shrink-0">
