@@ -22,6 +22,7 @@ import {
 import { parseDescriptionTags } from '@/lib/productTags';
 import ProductTagBadges from './ProductTagBadges';
 import ShareButton from './ShareButton';
+import VariantThumb from './VariantThumb';
 import KitchenNote, { cleanKitchenNote, formatSin } from './KitchenNote';
 import { getOptimizedImageUrl } from '@/lib/imageOptimizer';
 
@@ -88,9 +89,8 @@ function OptionCapsule({ name, image, priceLabel, bsLabel, count, mode, onSelect
 
   const leftInfo = (
     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-      {image && (
-        <img src={image} alt={name} className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-contain bg-slate-50 border border-slate-100 shrink-0 p-0.5" />
-      )}
+      {/* Miniatura ampliable (visor/lightbox al tocarla): solo si la variante trae imagen; no selecciona ni suma (ver VariantThumb.tsx) */}
+      {image && <VariantThumb image={image} name={name} priceLabel={priceLabel} bsLabel={bsLabel} />}
       <div className="min-w-0 flex-1">
         <span className="block text-xs font-bold text-slate-800 leading-tight line-clamp-2">{name}</span>
       </div>
