@@ -82,18 +82,21 @@ function Lightbox({ image, name, priceLabel, bsLabel, onClose }: { image: string
 
       {/* Clic sobre la foto o la etiqueta NO cierra: solo el fondo exterior */}
       <figure className="flex max-w-full flex-col items-center gap-3 cursor-default" onClick={contain}>
-        {imageFailed ? (
-          <div className="flex h-48 w-64 items-center justify-center rounded-2xl bg-white/10 px-6 text-center text-sm font-bold text-white">
-            No pudimos cargar la foto de esta opción.
-          </div>
-        ) : (
-          <img
-            src={image}
-            alt={name}
-            onError={() => setImageFailed(true)}
-            className="max-h-[75vh] max-w-[85vw] object-contain rounded-2xl shadow-2xl bg-white"
-          />
-        )}
+        {/* Marco cuadrado estandarizado (1:1, hasta 512 × 512 px): la foto se ajusta con `object-contain` (sin recorte ni deformación, sea alta o ancha).
+            El ancho es min(512px, 85vw, 70vh) y `aspect-square` fija el alto: así el marco sigue siendo cuadrado también en móvil apaisado, donde
+            un `max-h` suelto lo aplastaría a un rectángulo. */}
+        <div className="flex aspect-square w-[min(512px,85vw,70vh)] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/60 p-4 shadow-2xl">
+          {imageFailed ? (
+            <p className="px-6 text-center text-sm font-bold text-white">No pudimos cargar la foto de esta opción.</p>
+          ) : (
+            <img
+              src={image}
+              alt={name}
+              onError={() => setImageFailed(true)}
+              className="h-full w-full object-contain"
+            />
+          )}
+        </div>
         <figcaption className="flex max-w-[85vw] items-center gap-3 rounded-full bg-white/95 px-4 py-2 shadow-lg">
           <span className="truncate text-sm font-black text-slate-900">{name}</span>
           {priceLabel ? (
