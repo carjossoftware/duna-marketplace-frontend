@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, X } from 'lucide-react';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { toAuthError } from '@/services/authService';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/lib/authValidation';
 
 // Modal único de acceso: "Continuar con Google" arriba, separador y, debajo, pestañas Iniciar sesión / Registrarme con correo y contraseña.
+// "¿Olvidaste tu contraseña?" (pestaña de inicio de sesión) lleva a una vista para pedir el enlace de recuperación por correo y a otra de confirmación.
 // Comprar NO exige cuenta: el modal solo ofrece identificarse (lo abren la cabecera y el checkout). Las acciones llegan por props desde el
 // `AuthProvider` (no importa el contexto: sin dependencia circular). Los errores del servidor (`AuthError`) se muestran ya en español.
 // Va en un portal a `document.body` con z-[150]: por encima de los modales de compra (z-[100]–z-[140]) y libre de ancestros con transform.
@@ -29,6 +30,7 @@ export interface AuthModalActions {
   registerWithEmail: (name: string, email: string, password: string, phone: string) => Promise<void>;
   loginWithGoogle: (credentialToken: string) => Promise<void>;
   loginWithGooglePopup: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 interface AuthModalProps {
@@ -69,6 +71,8 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
   const dialogRef = useRef<HTMLDivElement>(null);
   const submittingRef = useRef(false);
   const mountedRef = useRef(true);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState('');
@@ -80,6 +84,11 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Recuperar contraseña: 'auth' = formulario normal, 'reset' = pedir el correo, 'reset-sent' = confirmación
+  const [view, setView] = useState<'auth' | 'reset' | 'reset-sent'>('auth');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetFieldError, setResetFieldError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const id = (field: string) => `${uid}-${field}`;
 
@@ -92,12 +101,30 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
     if (lockedByUs) body.style.overflow = 'hidden';
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialogRef.current?.focus();
+    // Escape también con el foco fuera del diálogo: al enviar, el botón enfocado se deshabilita y el foco cae a <body>
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) onCloseRef.current();
+    };
+    window.addEventListener('keydown', onWindowKeyDown);
     return () => {
+      window.removeEventListener('keydown', onWindowKeyDown);
       mountedRef.current = false;
       if (lockedByUs) body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
   }, []);
+
+  // Al terminar un envío el foco vuelve al diálogo si se perdió (los controles se deshabilitan mientras se envía): así el teclado y Escape siguen funcionando
+  const refocusIfLost = () => {
+    const active = document.activeElement;
+    if (!active || active === document.body) dialogRef.current?.focus();
+  };
+
+  // Al cambiar de vista el foco va al primer control de la vista nueva (correo / botón de volver)
+  useEffect(() => {
+    if (view === 'reset') document.getElementById(`${uid}-reset-email`)?.focus();
+    if (view === 'reset-sent') document.getElementById(`${uid}-reset-back`)?.focus();
+  }, [view, uid]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
@@ -135,7 +162,10 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
         if (authError.code !== 'cancelled' && mountedRef.current) setFormError(authError.message); // cerrar la ventana de Google no es un error
       } finally {
         submittingRef.current = false;
-        if (mountedRef.current) setSubmitting(false);
+        if (mountedRef.current) {
+          setSubmitting(false);
+          refocusIfLost();
+        }
       }
     },
     [onClose, onSuccess]
@@ -172,6 +202,51 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
     else void run(() => actions.registerWithEmail(name.trim(), normalizeEmail(email), password, toInternationalPhone(phone, prefix)));
   };
 
+  const openReset = () => {
+    if (submitting) return;
+    setResetEmail(email); // el correo ya escrito en el inicio de sesión pasa a la vista de recuperación
+    setResetFieldError(null);
+    setResetError(null);
+    setFormError(null);
+    setView('reset');
+  };
+
+  const backToLogin = () => {
+    if (submitting) return;
+    if (resetEmail.trim()) setEmail(resetEmail);
+    setMode('login');
+    setFieldErrors({});
+    setResetFieldError(null);
+    setResetError(null);
+    setView('auth');
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submittingRef.current) return; // doble toque
+    const emailError = validateEmail(resetEmail);
+    setResetFieldError(emailError);
+    setResetError(null);
+    if (emailError) {
+      document.getElementById(`${uid}-reset-email`)?.focus();
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await actions.sendPasswordReset(normalizeEmail(resetEmail));
+      if (mountedRef.current) setView('reset-sent');
+    } catch (err) {
+      if (mountedRef.current) setResetError(toAuthError(err).message);
+    } finally {
+      submittingRef.current = false;
+      if (mountedRef.current) {
+        setSubmitting(false);
+        refocusIfLost();
+      }
+    }
+  };
+
   const handleGoogleCredential = useCallback((token: string) => { void run(() => actions.loginWithGoogle(token)); }, [run, actions]);
   const handleGooglePopup = useCallback(() => { void run(() => actions.loginWithGooglePopup()); }, [run, actions]);
 
@@ -202,11 +277,17 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
 
         <div className="mb-4 pr-8">
           <h2 id={id('title')} className="text-xl font-black leading-tight text-slate-900">
-            {mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
+            {view === 'reset' ? 'Recupera tu contraseña' : view === 'reset-sent' ? 'Revisa tu correo' : mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
           </h2>
-          <p className="mt-1 text-xs font-medium text-slate-500">Guarda tus datos y compra más rápido en D&apos;una.</p>
+          {view !== 'reset-sent' && (
+            <p className="mt-1 text-xs font-medium text-slate-500">
+              {view === 'reset' ? 'Escribe el correo de tu cuenta y te enviaremos un enlace para crear una nueva contraseña.' : "Guarda tus datos y compra más rápido en D'una."}
+            </p>
+          )}
         </div>
 
+        {view === 'auth' && (
+        <>
         <GoogleSignInButton onCredential={handleGoogleCredential} onPopup={handleGooglePopup} disabled={submitting} />
 
         <div className="my-4 flex items-center gap-3" aria-hidden="true">
@@ -324,6 +405,14 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
             </div>
           </Field>
 
+          {mode === 'login' && (
+            <div className="-mt-1 text-right">
+              <button type="button" onClick={openReset} disabled={submitting} className="text-[12px] font-bold text-[#fe6712] transition hover:underline disabled:opacity-60 cursor-pointer">
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+          )}
+
           {formError && (
             <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -352,6 +441,74 @@ export default function AuthModal({ initialMode = 'login', onClose, onSuccess, a
         <p className="mt-4 text-center text-[11px] font-medium text-slate-400">
           ¿Prefieres no registrarte? Puedes comprar como invitado con solo tu número de WhatsApp.
         </p>
+        </>
+        )}
+
+        {view === 'reset' && (
+          <form onSubmit={handleResetSubmit} noValidate className="space-y-3">
+            <Field id={`${uid}-reset-email`} label="Correo electrónico" error={resetFieldError ?? undefined}>
+              <input
+                id={`${uid}-reset-email`}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                placeholder="tucorreo@ejemplo.com"
+                value={resetEmail}
+                disabled={submitting}
+                onChange={(e) => setResetEmail(e.target.value)}
+                aria-invalid={!!resetFieldError}
+                aria-describedby={resetFieldError ? `${uid}-reset-email-error` : undefined}
+                className={inputClass(!!resetFieldError)}
+              />
+            </Field>
+
+            {resetError && (
+              <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FE6712] text-sm font-black text-white shadow-md shadow-orange-500/25 transition hover:bg-[#e0580d] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Enviando…
+                </>
+              ) : (
+                'Enviar enlace de recuperación'
+              )}
+            </button>
+            <button type="button" onClick={backToLogin} disabled={submitting} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold text-slate-500 transition hover:text-slate-800 disabled:opacity-60 cursor-pointer">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Volver a iniciar sesión
+            </button>
+          </form>
+        )}
+
+        {view === 'reset-sent' && (
+          <div className="space-y-4">
+            <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-black leading-snug text-emerald-800">Te hemos enviado un correo con instrucciones para restablecer tu contraseña</p>
+                <p className="mt-1 text-xs font-medium text-emerald-700">Revisa también tu carpeta de spam. Si no llega, verifica que sea el correo de tu cuenta.</p>
+              </div>
+            </div>
+            <button
+              id={`${uid}-reset-back`}
+              type="button"
+              onClick={backToLogin}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FE6712] text-sm font-black text-white shadow-md shadow-orange-500/25 transition hover:bg-[#e0580d] active:scale-[0.99] cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Volver a iniciar sesión
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

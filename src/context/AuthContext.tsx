@@ -10,6 +10,7 @@ import {
   loginWithGooglePopup as serviceLoginWithGooglePopup,
   logout as serviceLogout,
   registerWithEmail as serviceRegisterWithEmail,
+  sendPasswordReset as serviceSendPasswordReset,
   subscribeToSession,
   type AuthSession,
   type AuthUser,
@@ -48,6 +49,8 @@ interface AuthContextValue {
   /** Alternativa sin Client ID de Google Identity Services: ventana emergente de Firebase. */
   loginWithGooglePopup: () => Promise<void>;
   logout: () => Promise<void>;
+  /** Envía el correo de recuperación de contraseña (no revela si el correo tiene cuenta). */
+  sendPasswordReset: (email: string) => Promise<void>;
   openAuthModal: (options?: OpenAuthOptions) => void;
   closeAuthModal: () => void;
 }
@@ -64,6 +67,7 @@ const DEFAULT_VALUE: AuthContextValue = {
   loginWithGoogle: noop,
   loginWithGooglePopup: noop,
   logout: noop,
+  sendPasswordReset: noop,
   openAuthModal: () => {},
   closeAuthModal: () => {},
 };
@@ -128,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await serviceLogout();
     setSession(null);
   }, []);
+  const sendPasswordReset = useCallback((email: string) => serviceSendPasswordReset(email), []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -141,10 +146,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loginWithGoogle,
       loginWithGooglePopup,
       logout,
+      sendPasswordReset,
       openAuthModal,
       closeAuthModal,
     }),
-    [session, isLoading, loginWithEmail, registerWithEmail, loginWithGoogle, loginWithGooglePopup, logout, openAuthModal, closeAuthModal]
+    [session, isLoading, loginWithEmail, registerWithEmail, loginWithGoogle, loginWithGooglePopup, logout, sendPasswordReset, openAuthModal, closeAuthModal]
   );
 
   return (
@@ -155,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           initialMode={modal.mode}
           onClose={closeAuthModal}
           onSuccess={modal.onSuccess}
-          actions={{ loginWithEmail, registerWithEmail, loginWithGoogle, loginWithGooglePopup }}
+          actions={{ loginWithEmail, registerWithEmail, loginWithGoogle, loginWithGooglePopup, sendPasswordReset }}
         />
       )}
     </AuthContext.Provider>

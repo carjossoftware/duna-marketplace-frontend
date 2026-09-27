@@ -1,7 +1,8 @@
 // Validaciones de los formularios de autenticación (puras, sin React ni red). El servidor (Firebase) vuelve a validar: esto solo evita
 // viajes inútiles y da mensajes claros en español.
 
-export const PASSWORD_MIN_LENGTH = 8;
+// Igual al mínimo de Firebase Authentication (6): la interfaz no exige más que el servidor ni da un mensaje distinto del suyo
+export const PASSWORD_MIN_LENGTH = 6;
 
 export const PHONE_PREFIXES = ['+58', '+57', '+1'] as const;
 export type PhonePrefix = (typeof PHONE_PREFIXES)[number];
@@ -19,7 +20,7 @@ export function validateEmail(email: string): string | null {
 
 export function validatePassword(password: string, mode: 'login' | 'register'): string | null {
   if (!password) return 'Escribe tu contraseña.';
-  if (mode === 'register' && password.length < PASSWORD_MIN_LENGTH) return `Usa al menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+  if (mode === 'register' && password.length < PASSWORD_MIN_LENGTH) return `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`;
   return null;
 }
 

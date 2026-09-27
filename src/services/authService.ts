@@ -1,5 +1,6 @@
 import type { Auth, User } from 'firebase/auth';
 import { readProfilePhone, saveProfilePhone } from '@/lib/customerProfile';
+import { isAuthConfigComplete } from '@/lib/firebaseConfig';
 
 // Servicio de autenticación de clientes sobre Firebase Authentication (decisión del 2026-09-26: el contrato de AdonisJS no define cuentas de
 // cliente). Es la ÚNICA pieza que conoce a Firebase: si un día el backend expone cuentas propias, se reemplaza este archivo y el contexto,
@@ -35,15 +36,11 @@ export class AuthError extends Error {
 }
 
 /**
- * Se ofrece inicio de sesión solo si Firebase está configurado (variables NEXT_PUBLIC_FIREBASE_*). Interruptor: `NEXT_PUBLIC_AUTH_ENABLED=false` lo oculta
- * aunque Firebase esté configurado (útil mientras Authentication no esté habilitado en la consola de Firebase: sin eso todo intento de ingreso falla).
+ * Se ofrece inicio de sesión solo si la configuración de Auth está completa (NEXT_PUBLIC_FIREBASE_* o, si se definen, NEXT_PUBLIC_AUTH_FIREBASE_*: ver
+ * `firebaseConfig.ts`). Interruptor: `NEXT_PUBLIC_AUTH_ENABLED=false` lo oculta aunque esté configurado (útil mientras Authentication no esté habilitado
+ * en la consola de Firebase: sin eso todo intento de ingreso falla).
  */
-export const isAuthAvailable: boolean = Boolean(
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
-    process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'false'
-);
+export const isAuthAvailable: boolean = isAuthConfigComplete && process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'false';
 
 /** Client ID de Google Identity Services (botón "Continuar con Google" de 1 clic). Sin él se usa la ventana emergente de Firebase. */
 export const googleClientId: string = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -62,8 +59,9 @@ let runtimePromise: Promise<AuthRuntime> | null = null;
 function loadAuth(): Promise<AuthRuntime> {
   if (!isAuthAvailable) return Promise.reject(new AuthError('unavailable', 'El inicio de sesión no está disponible por ahora.'));
   if (!runtimePromise) {
-    runtimePromise = Promise.all([import('firebase/auth'), import('@/lib/firebaseApp')]).then(([sdk, { firebaseApp }]) => {
-      const auth = sdk.getAuth(firebaseApp);
+    runtimePromise = Promise.all([import('firebase/auth'), import('@/lib/firebaseApp')]).then(([sdk, { getAuthFirebaseApp }]) => {
+      const auth = sdk.getAuth(getAuthFirebaseApp());
+      auth.languageCode = 'es'; // correos de Firebase (recuperación de contraseña) en español
       if (authEmulatorHost) sdk.connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
       return { sdk, auth };
     });
@@ -89,15 +87,15 @@ export function toAuthError(err: unknown, via?: 'google'): AuthError {
     case 'auth/wrong-password':
     case 'auth/user-not-found':
     case 'auth/invalid-login-credentials':
-      return new AuthError(code, 'Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo.');
+      return new AuthError(code, 'Correo o contraseña incorrectos.');
     case 'auth/invalid-email':
       return new AuthError(code, 'Ese correo no parece válido. Revísalo.');
     case 'auth/email-already-in-use':
-      return new AuthError(code, 'Ya existe una cuenta con ese correo. Inicia sesión en su lugar.');
+      return new AuthError(code, 'Este correo ya está registrado, intenta iniciar sesión.');
     case 'auth/account-exists-with-different-credential':
       return new AuthError(code, 'Ese correo ya está registrado con otro método de ingreso. Prueba con Google o con tu contraseña.');
     case 'auth/weak-password':
-      return new AuthError(code, 'La contraseña es muy débil. Usa al menos 8 caracteres.');
+      return new AuthError(code, 'La contraseña debe tener al menos 6 caracteres.');
     case 'auth/user-disabled':
       return new AuthError(code, 'Esta cuenta está deshabilitada. Comunícate con soporte de D\'una.');
     case 'auth/too-many-requests':
@@ -111,9 +109,13 @@ export function toAuthError(err: unknown, via?: 'google'): AuthError {
     case 'auth/user-cancelled':
       return new AuthError('cancelled', '');
     case 'auth/operation-not-allowed':
-    case 'auth/configuration-not-found':
     case 'auth/admin-restricted-operation':
-      return new AuthError(code, 'Este método de ingreso aún no está habilitado. Inténtalo con otro o más tarde.');
+      return new AuthError(code, 'Método no habilitado en el proyecto.');
+    case 'auth/configuration-not-found':
+      // Authentication sin inicializar en el proyecto de Firebase al que apunta esta app
+      return new AuthError(code, 'El inicio de sesión aún no está habilitado en este proyecto. Inténtalo más tarde.');
+    case 'auth/missing-email':
+      return new AuthError(code, 'Escribe tu correo electrónico.');
     case 'auth/unauthorized-domain':
       return new AuthError(code, 'Este sitio todavía no está autorizado para iniciar sesión con Google. Usa tu correo por ahora.');
     case 'auth/invalid-app-credential':
@@ -217,6 +219,21 @@ export async function loginWithGooglePopup(): Promise<AuthSession> {
     return await toSession(cred.user);
   } catch (err) {
     throw toAuthError(err, 'google');
+  }
+}
+
+/**
+ * Envía el correo de recuperación de contraseña (`sendPasswordResetEmail`, plantilla de Firebase en español). Si el correo no tiene cuenta NO se
+ * avisa (Firebase con protección contra enumeración ya responde igual; sin ella, `auth/user-not-found` se trata como éxito): no se revela qué
+ * correos están registrados.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  try {
+    const { sdk, auth } = await loadAuth();
+    await sdk.sendPasswordResetEmail(auth, email.trim());
+  } catch (err) {
+    if (errorCode(err) === 'auth/user-not-found') return;
+    throw toAuthError(err);
   }
 }
 

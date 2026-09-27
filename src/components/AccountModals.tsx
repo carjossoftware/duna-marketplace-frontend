@@ -15,6 +15,8 @@ const DEFAULT_MAP_CENTER = { lat: 10.3950, lng: -71.4450 }; // mismo centro de r
 
 function usePanelChrome(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     const body = document.body;
     const previousOverflow = body.style.overflow;
@@ -22,7 +24,13 @@ function usePanelChrome(onClose: () => void) {
     if (lockedByUs) body.style.overflow = 'hidden';
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     ref.current?.focus();
+    // Escape también con el foco fuera del panel (p. ej. tras eliminar una dirección, el botón enfocado desaparece y el foco cae a <body>)
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) onCloseRef.current();
+    };
+    window.addEventListener('keydown', onWindowKeyDown);
     return () => {
+      window.removeEventListener('keydown', onWindowKeyDown);
       if (lockedByUs) body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
