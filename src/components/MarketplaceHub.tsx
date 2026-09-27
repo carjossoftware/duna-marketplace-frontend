@@ -691,7 +691,7 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
           {/* Fila 2: Buscador Integrado con Selector de Moneda */}
           <div className="flex items-center gap-2 px-4 py-1.5 w-full">
             <div className="flex-1 flex items-center bg-slate-50 border border-slate-200/90 rounded-full px-3.5 py-1.5 shadow-inner focus-within:border-[#FE6712] focus-within:bg-white transition-all gap-2 min-w-0">
-              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg width={14} height={14} className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
               <input
@@ -729,7 +729,7 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
           {/* COL CENTRAL — Buscador pill + botón Cercanos */}
           <div className="flex-1 max-w-xl mx-auto flex">
             <div className="w-full flex items-center bg-slate-50 border border-slate-200/90 rounded-full px-3.5 py-1.5 shadow-inner focus-within:border-[#FE6712] focus-within:bg-white transition-all gap-2">
-              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg width={14} height={14} className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
               <input
@@ -744,7 +744,7 @@ export default function MultitiendaHub({ initialStoreCode, initialStore, initial
                 onClick={handleTriggerGpsCalculation}
                 className="bg-[#FE6712] text-white text-[11px] font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm hover:bg-[#e0580d] transition shrink-0 cursor-pointer"
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg width={12} height={12} className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z" />
                   <circle cx="12" cy="9" r="2.5" fill="currentColor" stroke="none" />
                 </svg>

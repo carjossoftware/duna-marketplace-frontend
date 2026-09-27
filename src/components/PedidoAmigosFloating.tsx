@@ -149,7 +149,7 @@ export function PedidoAmigosFloating() {
                 className="flex items-center gap-1 rounded-xl bg-[#fe6712] hover:bg-[#e0580d] px-3 py-2 text-[11px] font-black text-white transition active:scale-95 cursor-pointer"
               >
                 Volver
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg width={12} height={12} className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
@@ -160,7 +160,7 @@ export function PedidoAmigosFloating() {
                 aria-label="Cerrar pedido entre amigos"
                 className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-600 text-slate-400 hover:text-white hover:border-slate-400 transition cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg width={14} height={14} className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
