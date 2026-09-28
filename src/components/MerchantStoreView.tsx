@@ -582,7 +582,7 @@ export default function MerchantStoreView({
   const searchNode = (
     <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200/60 py-2.5 px-4 transition-all duration-200">
       <div className={`${sidebarLayout ? 'max-w-7xl md:px-8' : 'max-w-4xl'} mx-auto`}>
-        <div className="relative flex items-center w-full group">
+        <div className="relative flex items-center w-full max-w-3xl mx-auto group">
           <div className="absolute left-4 flex items-center justify-center pointer-events-none">
             <Search className="w-5 h-5 text-slate-400 group-focus-within:text-[#fe6712] transition-colors duration-200" />
           </div>
